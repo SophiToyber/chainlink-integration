@@ -1,0 +1,69 @@
+def project = 'acquired-vector-227009'
+def appName = 'wrapper-chainlink'
+def branchName = 'master'
+def imageTag = "gcr.io/${project}/${appName}:${env.BRANCH_NAME}.${env.BUILD_NUMBER}"
+
+def userName = "${env.GIT_LAB_USER_NAME}"
+def userPassword = "${env.GIT_LAB_PASSWORD}"
+
+pipeline {
+  agent {
+    kubernetes {
+      label 'wrapper-chainlink'
+      defaultContainer 'jnlp'
+      yaml """
+apiVersion: v1
+kind: Pod
+metadata:
+labels:
+  component: ci
+spec:
+  serviceAccountName: cd-jenkins
+  containers:
+  - name: ubuntu
+    image: ubuntu:18.04
+    command:
+    - cat
+    tty: true
+  - name: gcloud
+    image: gcr.io/cloud-builders/gcloud
+    command:
+    - cat
+    tty: true
+  - name: kubectl
+    image: gcr.io/cloud-builders/kubectl
+    command:
+    - cat
+    tty: true
+"""
+}
+  }
+  stages {
+    stage('Build with cloned app properties and push image with Container Builder') {
+      steps {
+        container('gcloud') {
+              sh """
+              set +x
+              echo "Cloning prod properties "
+              git clone https://${userName}:${userPassword}@gitlab.com/cryptex-online/properties
+              echo "Clone success "
+              mv properties/wrapper-сhainlink/application.properties src/main/resources/
+              echo "Change app properties success"
+              gcloud builds submit -t ${imageTag} .
+              echo "Build success"
+              """
+        }
+      }
+    }
+    stage('Deploy Production') {
+      steps{
+        container('kubectl') {
+        // Change deployed image in canary to the one we just built
+          sh("sed -i.bak 's#gcr.io/cloud-solutions-images/wrapper-chainlink:1.0.0#${imageTag}#' ./k8s/production/*.yml")
+          sh("kubectl --namespace=production apply -f k8s/services/")
+          sh("kubectl --namespace=production apply -f k8s/production/")
+        }
+      }
+    }
+  }
+}

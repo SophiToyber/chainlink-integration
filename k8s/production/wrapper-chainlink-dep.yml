@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+ name: wrapper-chainlink
+ labels:
+   app: wrapper-chainlink
+spec:
+ replicas: 1
+ selector:
+   matchLabels:
+      app: wrapper-chainlink
+ template:
+   metadata:
+     labels:
+        app: wrapper-chainlink
+   spec:
+     containers:
+     - name: wrapper-chainlink
+       image: gcr.io/cloud-solutions-images/wrapper-chainlink
+       ports:
+         - name: http
+           containerPort: 8514
